@@ -2,7 +2,7 @@ name: Python Package with Conda
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   schedule:
     - cron: '0 22 * * *'   # UTC 22:00 (北京时间次日6:00)
 
