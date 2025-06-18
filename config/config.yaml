@@ -6,7 +6,7 @@ version: 15
 push: ""
 account:
   #登入账号只需要修改cookie就行了
-  cookie: "${{ MY_GAME_COOKIE }}"
+  cookie: ""${{ MY_GAME_COOKIE }}""
   stuid: ""
   stoken: "${{ MY_GAME_STOCKEN }}"
   mid: ""
