@@ -102,7 +102,7 @@ cloud_games:
       #开启签到
       enable: true
       #这里填入抓包获得的token，支持多个
-      token: ""
+      token: "ai=4;ci=1;oi=304363487;ct=v2_124eaf023903dd81df47fbad1b6d4197c4679077;si=13f5cdd49c10b093285408cdf37fa5406baf4a1ad19db85d37ce0f13c47cb6dc;bi=hk4e_cn"
     #云绝区零
     zzz:
       enable: false
