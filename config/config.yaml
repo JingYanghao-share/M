@@ -6,9 +6,9 @@ version: 15
 push: ""
 account:
   #登入账号只需要修改cookie就行了
-  cookie: "_MHYUUID=ab06c13b-ed57-4223-a98f-ce5984a5adea; DEVICEFP_SEED_ID=3979758c3159a883; DEVICEFP_SEED_TIME=1750181474344; DEVICEFP=38d80c548c435; MIHOYO_LOGIN_PLATFORM_LIFECYCLE_ID=50922827da; ltoken_v2=v2_bh7HKQllszDNpMY_wq_MA_eKyROSwZB3dUWUBKVO6qXbZ_E65swwYJ-kiR67u88jBanGdNn3Vo_FidPgFmZRdENitIG5GxhlVjwARj58lioeGm0Fs1CVJUlwSCSUe8aOGm7mbfAgPLBYxsib0g0=.CAE=; ltmid_v2=0vcb9vyr0g_mhy; ltuid_v2=304363487; cookie_token_v2=v2_buGHl-xBVpmuexCBVrItUU0sIpFBsW9A6GeSktRNd2V6MOFWs62kUlJRd1x9_waPBjNYx0we5sWvx278f68Bry5pofeD795p6h-yxCCnw5kkYaCnAbyNk81UULm9CrDr8JKenjn2CY85Jc-FwLk=.CAE=; account_mid_v2=0vcb9vyr0g_mhy; account_id_v2=304363487; cookie_token=gs0XMQYHZF5q0cEHrEG8363hfHFFmG6MwE4FadHb; account_id=304363487; ltoken=irOnQM4EFEsxk0B7uKEFEBH0nNBPwYaRopC0SHwW; ltuid=304363487"
+  cookie: "${{ MY_GAME_COOKIE }}"
   stuid: ""
-  stoken: "v2_RfvkoH8uB_1n1aa8YVC7nwB3eQxXDwoP5UNQxRO4nPYcNHXs2Ds3C6PHsJVDgc_WGEAgazZ6gCU4f3LI3p4HLvISUCXzJPYU5i9MdBFysjzgKLRuaRwCccg6.CAE=;device_id=3a8938e3-c9b8-3c36-9221-017821d7db4d;device_fp=38d80c548de02"
+  stoken: "${{ MY_GAME_STOCKEN }}""
   mid: ""
 device:
   name: "ONEPLES ACE3"
@@ -106,7 +106,7 @@ cloud_games:
     #云绝区零
     zzz:
       enable: false
-      token: "ai=4;ci=1;oi=304363487;ct=v2_124eaf023903dd81df47fbad1b6d4197c4679077;si=13f5cdd49c10b093285408cdf37fa5406baf4a1ad19db85d37ce0f13c47cb6dc;bi=hk4e_cn"
+      token: "${{ MY_GAME_CLOUD_YS_TOCKEN }}""
   os:
     lang: "zh-cn"
     enable: false
