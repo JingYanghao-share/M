@@ -8,7 +8,7 @@ account:
   #登入账号只需要修改cookie就行了
   cookie: "${{ MY_GAME_COOKIE }}"
   stuid: ""
-  stoken: "${{ MY_GAME_STOCKEN }}""
+  stoken: "${{ MY_GAME_STOCKEN }}"
   mid: ""
 device:
   name: "ONEPLES ACE3"
@@ -106,7 +106,7 @@ cloud_games:
     #云绝区零
     zzz:
       enable: false
-      token: "${{ MY_GAME_CLOUD_YS_COOKIE }}""
+      token: "${{ MY_GAME_CLOUD_YS_COOKIE }}"
   os:
     lang: "zh-cn"
     enable: false
