@@ -13,6 +13,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        python-version: '3.10'
+        activate-environment: 'mihoyo-env'
+    
+    - name: Add conda to PATH
+      run: |
+        echo "$CONDA/bin" >> $GITHUB_PATH
+        conda init bash
+        source ~/.bashrc
+    
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
