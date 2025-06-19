@@ -9,98 +9,185 @@ import setting
 from loghelper import log
 from error import CookieError, StokenError
 
-
 # 搜索配置文件
-def find_config(ext: str) -> list:
-    file_name = []
-    for files in os.listdir(config.path):
-        if os.path.splitext(files)[1] == ext:
-            if config.config_prefix == "" or files.startswith(config.config_prefix):
-                file_name.append(files)
-    return file_name
+def find_config_files(search_path: str) -> list:
+    """查找所有配置文件，支持递归查找"""
+    config_files = []
+    
+    # 如果路径是文件，直接返回
+    if os.path.isfile(search_path):
+        return [search_path]
+    
+    # 如果路径是目录，递归查找所有.yml文件
+    if os.path.isdir(search_path):
+        for root, _, files in os.walk(search_path):
+            for file in files:
+                if file.lower().endswith(('.yml', '.yaml')):
+                    config_files.append(os.path.join(root, file))
+        return config_files
+    
+    # 默认行为：在config目录下查找
+    config_path = config.path if hasattr(config, 'path') else 'config'
+    if os.path.exists(config_path) and os.path.isdir(config_path):
+        return find_config_files(config_path)
+    
+    log.warning(f"配置路径不存在: {search_path}")
+    return []
 
-
-# 筛选青龙多用户配置文件（头部匹配）
-def ql_config(config_list: list):
-    config_list_ql = []
-    for files in config_list:
-        if 'mhy_' == files[:4]:
-            config_list_ql.append(files)
-    return config_list_ql
-
-
+# 获取配置文件列表
 def get_config_list() -> list:
-    config_list = find_config('.yaml')
-    config_list.extend(find_config('.yml'))
-    if os.getenv("AutoMihoyoBBS_config_prefix") is None and os.getenv("AutoMihoyoBBS_config_multi") == '1':
-        # 判断通过读取青龙目录环境变量来判断用户是否使用青龙面板
-        if os.getenv("QL_DIR") is not None:
-            config_list = ql_config(config_list)
-    if len(config_list) == 0:
-        log.warning("未检测到配置文件，请确认 config 文件夹存在 .yaml/.yml 后缀名的配置文件！")
+    # 获取配置搜索路径
+    config_path = os.getenv("AUTOMIHOYOBBS_CONFIG_PATH", "config")
+    log.info(f"搜索配置文件路径: {config_path}")
+    
+    # 查找所有配置文件
+    config_files = find_config_files(config_path)
+    
+    # 过滤配置文件
+    config_prefix = getattr(config, 'config_prefix', '')
+    if config_prefix:
+        config_files = [f for f in config_files 
+                        if os.path.basename(f).startswith(config_prefix)]
+    
+    # 检查是否在青龙面板环境中
+    if os.getenv("AutoMihoyoBBS_config_multi") == '1' and os.getenv("QL_DIR"):
+        config_files = [f for f in config_files 
+                        if os.path.basename(f).startswith('mhy_')]
+    
+    if not config_files:
+        log.warning(f"未在 {config_path} 中找到任何配置文件")
         exit(1)
-    return config_list
-
+    
+    log.info(f"找到 {len(config_files)} 个配置文件")
+    return sorted(config_files)
 
 def main_multi(autorun: bool):
-    log.info("AutoMihoyoBBS Multi User mode")
-    log.info("正在搜索配置文件！")
-    config_list = get_config_list()
-    if autorun:
-        log.info(f"已搜索到 {len(config_list)} 个配置文件，正在开始执行！")
+    log.info("AutoMihoyoBBS 多用户模式启动")
+    
+    # 获取配置文件列表
+    config_files = get_config_list()
+    
+    # 自动运行模式检测
+    if os.getenv("GITHUB_ACTIONS") == "true" or autorun:
+        log.info(f"自动运行模式，找到 {len(config_files)} 个配置文件")
     else:
-        log.info(f"已搜索到 {len(config_list)} 个配置文件，请确认是否无多余文件！\r\n{config_list}")
+        log.info(f"找到 {len(config_files)} 个配置文件:\n" + "\n".join(config_files))
         try:
-            input("请输入回车继续，需要重新搜索配置文件请 Ctrl+C 退出脚本")
+            input("按回车开始执行，或 Ctrl+C 退出")
         except KeyboardInterrupt:
             exit(0)
-    results = {"ok": [], "close": [], "error": [], "captcha": []}
-    for i in iter(config_list):
-        log.info(f"正在执行 {i}")
-        setting.mihoyobbs_List_Use = []
-        config.config_Path = f"{config.path}/{i}"
+    
+    # 初始化结果跟踪
+    results = {
+        "success": [],
+        "skipped": [],
+        "failed": [],
+        "captcha": [],
+        "errors": []
+    }
+    
+    # 处理每个配置文件
+    for config_file in config_files:
+        file_name = os.path.basename(config_file)
+        log.info(f"开始处理: {file_name}")
+        
+        # 保存原始配置路径
+        original_config_path = getattr(config, 'config_Path', None)
+        
         try:
-            run_code, run_message = main.main()
-        except CookieError:
-            results["error"].append(i)
-            if config.config.get("push", "") != "":
-                push_handler = push.PushHandler(config.config["push"])
-                push_handler.push(1, "账号 Cookie 出错！")
-        except StokenError:
-            results["error"].append(i)
-            if config.config.get("push", "") != "":
-                push_handler = push.PushHandler(config.config["push"])
-                push_handler.push(1, "账号 Stoken 有问题！")
-        else:
-            if run_code == 0:
-                results["ok"].append(i)
-            elif run_code == 3:
-                results["captcha"].append(i)
+            # 设置当前配置文件
+            config.config_Path = config_file
+            
+            # 执行主任务
+            start_time = time.time()
+            return_code, message = main.main()
+            elapsed = time.time() - start_time
+            
+            # 记录结果
+            if return_code == 0:
+                results["success"].append(file_name)
+                log.info(f"{file_name} 执行成功 ({elapsed:.1f}s)")
+            elif return_code == 3:
+                results["captcha"].append(file_name)
+                log.warning(f"{file_name} 需要验证码 ({elapsed:.1f}s)")
+            elif return_code == 1:
+                results["skipped"].append(file_name)
+                log.info(f"{file_name} 未执行 ({elapsed:.1f}s)")
             else:
-                results["close"].append(i)
-        log.info(f"{i} 执行完毕")
-        time.sleep(random.randint(3, 10))
-    print("")
-    push_message = f'脚本执行完毕，共执行{len(config_list)}个配置文件，成功{len(results["ok"])}个，' \
-                   f'没执行{len(results["close"])}个，失败{len(results["error"])}个' \
-                   f'\r\n没执行的配置文件：{results["close"]}\r\n执行失败的配置文件：{results["error"]}\r\n' \
-                   f'触发游戏签到验证码的配置文件：{results["captcha"]}'
+                results["failed"].append(file_name)
+                log.error(f"{file_name} 执行失败 ({elapsed:.1f}s)")
+                
+        except CookieError as e:
+            results["errors"].append(f"{file_name}: Cookie错误")
+            log.error(f"{file_name} Cookie错误: {str(e)}")
+        except StokenError as e:
+            results["errors"].append(f"{file_name}: Stoken错误")
+            log.error(f"{file_name} Stoken错误: {str(e)}")
+        except Exception as e:
+            results["errors"].append(f"{file_name}: 未知错误")
+            log.exception(f"{file_name} 处理时发生未知错误")
+        finally:
+            # 恢复原始配置路径
+            if original_config_path:
+                config.config_Path = original_config_path
+            
+            # 随机延迟
+            delay = random.randint(3, 10)
+            log.info(f"等待 {delay} 秒后继续...")
+            time.sleep(delay)
+    
+    # 生成结果报告
+    success_count = len(results["success"])
+    skipped_count = len(results["skipped"])
+    failed_count = len(results["failed"])
+    captcha_count = len(results["captcha"])
+    error_count = len(results["errors"])
+    
+    push_message = (
+        f"🏁 任务执行完成\n"
+        f"📋 配置文件总数: {len(config_files)}\n"
+        f"✅ 成功: {success_count}\n"
+        f"⚠️ 跳过: {skipped_count}\n"
+        f"❌ 失败: {failed_count}\n"
+        f"🔒 需要验证码: {captcha_count}\n"
+        f"❗ 错误: {error_count}\n"
+    )
+    
+    if results["success"]:
+        push_message += f"\n✅ 成功列表: {', '.join(results['success'])}\n"
+    if results["skipped"]:
+        push_message += f"\n⚠️ 跳过列表: {', '.join(results['skipped'])}\n"
+    if results["failed"]:
+        push_message += f"\n❌ 失败列表: {', '.join(results['failed'])}\n"
+    if results["captcha"]:
+        push_message += f"\n🔒 验证码列表: {', '.join(results['captcha'])}\n"
+    if results["errors"]:
+        push_message += f"\n❗ 错误列表:\n - " + "\n - ".join(results['errors'])
+    
     log.info(push_message)
+    
+    # 确定推送状态
     status = 0
-    if len(results["error"]) == len(config_list):
+    if error_count > 0 or failed_count > 0:
         status = 1
-    elif len(results["error"]) != 0:
+    elif captcha_count > 0:
         status = 2
-    elif len(results["captcha"]) != 0:
-        status = 3
+    
     return status, push_message
 
-
 if __name__ == "__main__":
-    if (len(sys.argv) >= 2 and sys.argv[1] == "autorun") or os.getenv("AutoMihoyoBBS_autorun") == "1":
-        autorun_flag = True
-    else:
-        autorun_flag = False
-    status, push_message = main_multi(autorun_flag)
-    push.push(status, push_message)
-    exit(0)
+    # 自动运行模式检测
+    autorun = (
+        len(sys.argv) > 1 and sys.argv[1] == "autorun" or
+        os.getenv("AutoMihoyoBBS_autorun") == "1" or
+        os.getenv("GITHUB_ACTIONS") == "true"
+    )
+    
+    # 执行多用户任务
+    status, message = main_multi(autorun)
+    
+    # 推送结果
+    push.push(status, message)
+    
+    # 退出状态码
+    exit(0 if status == 0 else 1)
