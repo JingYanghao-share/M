@@ -1,4 +1,4 @@
-name: Python Package using Conde
+name: AutoMihoyoBBS Daily Checkin
 
 on:
   push:
@@ -14,16 +14,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+      
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2
       with:
-        python-version: '3.10'
+        miniconda-version: "latest"
+        python-version: "3.10"
+        activate-environment: "automihoyo"
+        auto-activate-base: false
+        
     - name: Add conda to system path
       run: |
-        echo $CONDA/bin >> $GITHUB_PATH
+        echo "$CONDA/bin" >> $GITHUB_PATH
+        
     - name: Lint with flake8
       run: |
-        conda install flake8
+        conda install -c conda-forge flake8 -y
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
@@ -71,33 +77,28 @@ jobs:
           }
     # =====================
     
-    - name: Install dependencies
-      run: pip install -r ./requirements.txt
-      
+    - name: Install Python dependencies
+      run: |
+        conda activate automihoyo
+        pip install -r requirements.txt
+        
     - name: Run main script
       run: |
-        # 设置环境变量告诉脚本使用处理后的配置文件目录
+        conda activate automihoyo
         export AUTOMIHOYOBBS_CONFIG_PATH=processed_configs
         python ./main_multi.py
-    - name: Lint with flake8
-      run: |
-        # 安装flake8到基础环境
-        conda install -c conda-forge flake8 -y
-        # 检查语法错误
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # 运行标准检查
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Install dependencies
-      run: pip install -r ./requirements.txt
-    - name: Run main script
-      run: python ./main.py
-    - name: Run main script
-      continue-on-error: true  # 防止单个任务失败导致整个工作流失败
-      run: python ./main.py
+        
     - name: Cache Conda packages
       uses: actions/cache@v3
-      env:
-       CONDA_CACHE_DIR: /usr/share/miniconda3/pkgs
       with:
-       path: ${{ env.CONDA_CACHE_DIR }}
-       key: conda-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+        path: |
+          ~/conda_pkgs_dir
+          $CONDA/pkgs
+        key: conda-${{ runner.os }}-${{ hashFiles('requirements.txt') }}-${{ hashFiles('environment.yml') }}
+        
+    - name: Upload processed configs
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: processed-configs
+        path: processed_configs
