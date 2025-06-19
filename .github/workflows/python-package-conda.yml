@@ -1,8 +1,10 @@
-name: Python Package using Conda
+name: Python Package using Conde
 
 on:
+  push:
+    branches: [ master ]
   schedule:
-    - cron: '0 22 * * *'   # UTC时间22:00（北京时间次日6:00）
+    - cron: '0 22 * * *'   # 北京时间6:00
 
 jobs:
   build-linux:
@@ -16,12 +18,67 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.10'
-    - name: Set up Miniconda
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        activate-environment: base
-        python-version: 3.10
-        auto-activate-base: true
+    - name: Add conda to system path
+      run: |
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Lint with flake8
+      run: |
+        conda install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    # ==== 配置替换步骤 ====
+    - name: Install dependencies for replacement
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gettext-base jq
+        
+    - name: Process all YML config files
+      run: |
+        # 创建处理后的配置目录
+        mkdir -p processed_configs
+        
+        # 查找所有.yml文件
+        find config/ -type f -name "*.yml" | while read config_file; do
+          # 获取相对路径和文件名
+          rel_path="${config_file#config/}"
+          output_path="processed_configs/${rel_path}"
+          
+          # 创建输出目录结构
+          mkdir -p "$(dirname "$output_path")"
+          
+          echo "处理配置文件: $config_file"
+          
+          # 使用自定义脚本处理占位符
+          python .github/scripts/replace_placeholders.py \
+            --input "$config_file" \
+            --output "$output_path" \
+            --env-json "$GITHUB_ENV_JSON"
+        done
+        
+        # 列出所有处理后的配置文件
+        echo "==== 处理后的配置文件 ===="
+        find processed_configs/ -type f
+      env:
+        # 将Secrets转换为JSON格式
+        GITHUB_ENV_JSON: |
+          {
+            "MY_GAME_COOKIE": "${{ secrets.MY_GAME_COOKIE }}",
+            "MY_GAME_STOCKEN": "${{ secrets.MY_GAME_STOCKEN }}",
+            "MY_GAME_CLOUD_YS_COOKIE": "${{ secrets.MY_GAME_CLOUD_YS_COOKIE }}",
+            "MY_GAME_COOKIE_friend": "${{ secrets.MY_GAME_COOKIE_friend }}",
+            "MY_GAME_COOKIEABC": "${{ secrets.MY_GAME_COOKIEABC }}"
+          }
+    # =====================
+    
+    - name: Install dependencies
+      run: pip install -r ./requirements.txt
+      
+    - name: Run main script
+      run: |
+        # 设置环境变量告诉脚本使用处理后的配置文件目录
+        export AUTOMIHOYOBBS_CONFIG_PATH=processed_configs
+        python ./main_multi.py
     - name: Lint with flake8
       run: |
         # 安装flake8到基础环境
