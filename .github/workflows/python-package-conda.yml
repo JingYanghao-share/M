@@ -1,10 +1,8 @@
-name: Python Package using Conde
+name: Python Package using Conda
 
 on:
-  push:
-    branches: [ master ]
   schedule:
-    - cron: '0 22 * * *'   # 北京时间6:00
+    - cron: '0 22 * * *'   # 北京时间6:00 (UTC+8)
 
 jobs:
   build-linux:
@@ -35,32 +33,20 @@ jobs:
         
     - name: Process all YML config files
       run: |
-        # 创建处理后的配置目录
         mkdir -p processed_configs
-        
-        # 查找所有.yml文件
         find config/ -type f -name "*.yml" | while read config_file; do
-          # 获取相对路径和文件名
           rel_path="${config_file#config/}"
           output_path="processed_configs/${rel_path}"
-          
-          # 创建输出目录结构
           mkdir -p "$(dirname "$output_path")"
-          
           echo "处理配置文件: $config_file"
-          
-          # 使用自定义脚本处理占位符
           python .github/scripts/replace_placeholders.py \
             --input "$config_file" \
             --output "$output_path" \
             --env-json "$GITHUB_ENV_JSON"
         done
-        
-        # 列出所有处理后的配置文件
         echo "==== 处理后的配置文件 ===="
         find processed_configs/ -type f
       env:
-        # 将Secrets转换为JSON格式
         GITHUB_ENV_JSON: |
           {
             "MY_GAME_COOKIE": "${{ secrets.MY_GAME_COOKIE }}",
