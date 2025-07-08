@@ -1,6 +1,6 @@
 on:
      schedule:
-       - cron: '0 22 * * *'   # 定时任务
+       - cron: '36 21 * * *'   # 定时任务
      workflow_dispatch:        # 支持手动触发
 jobs:
   build-linux:
