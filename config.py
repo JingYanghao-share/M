@@ -1,4 +1,3 @@
-import collections
 import os
 import yaml
 from copy import deepcopy
@@ -14,24 +13,21 @@ def is_github_actions() -> bool:
 
 
 def get_secret_from_env(key: str, default: str = "") -> str:
-    env_vars = [
-        key.upper(),
-        key.lower(),
-        f"AUTO_{key.upper()}",
-        f"AUTOMIHOYOBBS_{key.upper()}",
+    """
+    从环境变量获取敏感信息
+    优先使用全大写名称，如 COOKIE, STOKEN, STUID, MID
+    也支持带前缀的变体（便于兼容）
+    """
+    # 标准大写名称
+    env_names = [
+        key.upper(),                     # COOKIE
+        f"ACCOUNT_{key.upper()}",        # ACCOUNT_COOKIE
+        f"AUTO_{key.upper()}",           # AUTO_COOKIE
     ]
-    for env_var in env_vars:
-        value = os.getenv(env_var)
+    for name in env_names:
+        value = os.getenv(name)
         if value:
             return value
-    if key == "cookie":
-        return os.getenv("ACCOUNT_COOKIE", default)
-    elif key == "stoken":
-        return os.getenv("ACCOUNT_STOKEN", default)
-    elif key == "stuid":
-        return os.getenv("ACCOUNT_STUID", default)
-    elif key == "mid":
-        return os.getenv("ACCOUNT_MID", default)
     return default
 
 
@@ -147,11 +143,14 @@ def update_v14_update(data: dict):
 
 def load_config(p_path=None):
     global config
+    # GitHub Actions 环境优先从环境变量加载
     if is_github_actions():
         log.info("检测到 GitHub Actions 环境，从环境变量加载配置")
         return load_config_from_env()
+
     if not p_path:
         p_path = config_Path
+
     if not os.path.exists(p_path):
         log.warning(f"配置文件不存在: {p_path}，尝试从环境变量加载")
         env_config = load_config_from_env()
@@ -159,12 +158,14 @@ def load_config(p_path=None):
             return env_config
         log.warning("使用默认配置")
         return config
+
     try:
         with open(p_path, "r", encoding='utf-8') as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
     except Exception as e:
         log.error(f"读取配置文件失败: {e}")
         return load_config_from_env()
+
     if data['version'] != config_raw['version']:
         if data['version'] == 11:
             data = config_v11_update(data)
@@ -175,7 +176,9 @@ def load_config(p_path=None):
         if data['version'] == 14:
             data = update_v14_update(data)
         save_config(p_config=data)
+
     data["account"]["cookie"] = str(data["account"]["cookie"]).rstrip(' ')
+    # 用环境变量覆盖敏感信息（如果有）
     data = override_from_env(data)
     config = data
     log.info("Config 加载完毕")
@@ -183,30 +186,42 @@ def load_config(p_path=None):
 
 
 def load_config_from_env():
+    """从环境变量加载所有配置，环境变量均为大写"""
     log.info("从环境变量加载配置")
     env_config = deepcopy(config_raw)
+
+    # 账号信息（必须）
     env_config['account']['cookie'] = get_secret_from_env('cookie')
     env_config['account']['stoken'] = get_secret_from_env('stoken')
     env_config['account']['stuid'] = get_secret_from_env('stuid')
     env_config['account']['mid'] = get_secret_from_env('mid')
+
+    # 云游戏 Token（可选）
     env_config['cloud_games']['cn']['genshin']['token'] = get_secret_from_env('CLOUD_GAME_GENSHIN_TOKEN')
     env_config['cloud_games']['cn']['zzz']['token'] = get_secret_from_env('CLOUD_GAME_ZZZ_TOKEN')
     env_config['cloud_games']['os']['genshin']['token'] = get_secret_from_env('CLOUD_GAME_GENSHIN_OS_TOKEN')
+
+    # 国际服 Cookie（可选）
     env_config['games']['os']['cookie'] = get_secret_from_env('GAME_OS_COOKIE')
+
+    # 功能开关（通过环境变量控制）
     if os.getenv('ENABLE_ALL') == 'true':
         env_config['enable'] = True
         env_config['mihoyobbs']['enable'] = True
         env_config['games']['cn']['enable'] = True
         env_config['games']['os']['enable'] = True
+
     env_config['mihoyobbs']['enable'] = os.getenv('ENABLE_MIHOYOBBS', 'true').lower() == 'true'
     env_config['games']['cn']['enable'] = os.getenv('ENABLE_GAME_CN', 'true').lower() == 'true'
     env_config['games']['os']['enable'] = os.getenv('ENABLE_GAME_OS', 'false').lower() == 'true'
     env_config['cloud_games']['cn']['enable'] = os.getenv('ENABLE_CLOUD_GAME_CN', 'false').lower() == 'true'
     env_config['cloud_games']['os']['enable'] = os.getenv('ENABLE_CLOUD_GAME_OS', 'false').lower() == 'true'
     env_config['web_activity']['enable'] = os.getenv('ENABLE_WEB_ACTIVITY', 'false').lower() == 'true'
+
     env_config['cloud_games']['cn']['genshin']['enable'] = os.getenv('ENABLE_CLOUD_GAME_GENSHIN', 'false').lower() == 'true'
     env_config['cloud_games']['cn']['zzz']['enable'] = os.getenv('ENABLE_CLOUD_GAME_ZZZ', 'false').lower() == 'true'
     env_config['cloud_games']['os']['genshin']['enable'] = os.getenv('ENABLE_CLOUD_GAME_GENSHIN_OS', 'false').lower() == 'true'
+
     games = ['genshin', 'honkai2', 'honkai3rd', 'tears_of_themis', 'honkai_sr', 'zzz']
     for game in games:
         env_key = f'ENABLE_GAME_{game.upper()}'
@@ -215,12 +230,15 @@ def load_config_from_env():
         env_key_os = f'ENABLE_GAME_OS_{game.upper()}'
         if os.getenv(env_key_os):
             env_config['games']['os'][game]['checkin'] = os.getenv(env_key_os).lower() == 'true'
+
     log.info("从环境变量加载配置完成")
     return env_config
 
 
 def override_from_env(data: dict):
+    """用环境变量覆盖配置中的敏感信息（主要用于混合模式）"""
     if is_github_actions():
+        # 覆盖账号
         cookie = get_secret_from_env('cookie')
         if cookie:
             data['account']['cookie'] = cookie
@@ -233,6 +251,8 @@ def override_from_env(data: dict):
         mid = get_secret_from_env('mid')
         if mid:
             data['account']['mid'] = mid
+
+        # 覆盖云游戏 Token
         token = get_secret_from_env('CLOUD_GAME_GENSHIN_TOKEN')
         if token:
             data['cloud_games']['cn']['genshin']['token'] = token
@@ -242,9 +262,12 @@ def override_from_env(data: dict):
         token_os = get_secret_from_env('CLOUD_GAME_GENSHIN_OS_TOKEN')
         if token_os:
             data['cloud_games']['os']['genshin']['token'] = token_os
+
+        # 国际服 Cookie
         os_cookie = get_secret_from_env('GAME_OS_COOKIE')
         if os_cookie:
             data['games']['os']['cookie'] = os_cookie
+
     return data
 
 
@@ -265,6 +288,7 @@ def save_config(p_path=None, p_config=None):
         with open(p_path, "w+", encoding='utf-8') as f:
             f.seek(0)
             f.truncate()
+            # 如果是 GHA 环境，保存时不写入敏感信息（但前面已跳过，此处为安全）
             if is_github_actions():
                 safe_config = deepcopy(p_config)
                 safe_config['account']['cookie'] = ''
