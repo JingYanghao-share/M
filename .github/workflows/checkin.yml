@@ -80,15 +80,15 @@ jobs:
           ENABLE_GAME_CN: "true"
           ENABLE_GAME_GENSHIN: "true"
           ENABLE_GAME_HONKAI3RD: "false"
-          ENABLE_GAME_HONKAI_SR: "false"
+          ENABLE_GAME_HONKAI_SR: "true"
           ENABLE_GAME_ZZZ: "false"
           
           # 国际服游戏
           ENABLE_GAME_OS: "false"
           
           # 云游戏
-          ENABLE_CLOUD_GAME_CN: "false"
-          ENABLE_CLOUD_GAME_GENSHIN: "false"
+          ENABLE_CLOUD_GAME_CN: "true"
+          ENABLE_CLOUD_GAME_GENSHIN: "true"
           
           # 网页活动
           ENABLE_WEB_ACTIVITY: "false"
