@@ -25,16 +25,18 @@ class StatusCode(Enum):
     CAPTCHA_TRIGGERED = 3
 
 
+def is_github_actions() -> bool:
+    """检测是否在 GitHub Actions 环境"""
+    return os.getenv('GITHUB_ACTIONS') == 'true'
+
+
 def check_github_actions() -> None:
-    """检查是否在GitHub Actions环境运行（已禁用）"""
-    if os.getenv('GITHUB_ACTIONS') == 'true':
+    """检测并允许 GitHub Actions 运行（不再退出）"""
+    if is_github_actions():
         log.warning("检测到 GitHub Actions 环境运行，已允许执行")
-        # 注释掉原来的退出逻辑
-        # exit(0)
 
 
 def initialize_config() -> Tuple[bool, Optional[str]]:
-    """初始化配置"""
     config.load_config()
     if not config.config["enable"]:
         log.warning("Config 未启用！")
@@ -43,24 +45,33 @@ def initialize_config() -> Tuple[bool, Optional[str]]:
 
 
 def handle_login() -> None:
-    """处理登录逻辑"""
+    """
+    处理登录逻辑
+    - GitHub Actions 环境下，若缺少 cookie/stoken/stuid/mid 则直接抛出异常提示设置 Secrets
+    - 本地环境则进行交互式登录
+    """
     account_cfg = config.config["account"]
+    # 检查必要字段是否为空
     if any([
         account_cfg["stuid"] == "",
         account_cfg["stoken"] == "",
         account_cfg["mid"] == ""
     ]):
-        if config.config["mihoyobbs"]["enable"]:
-            login.login()
-            time.sleep(random.randint(3, 8))
-        account_cfg["cookie"] = tools.tidy_cookie(account_cfg["cookie"])
+        if is_github_actions():
+            raise CookieError(
+                "GitHub Actions 环境：缺少账号 Secrets！请设置 COOKIE, STOKEN, STUID, MID"
+            )
+        else:
+            # 本地环境，尝试交互式登录
+            if config.config["mihoyobbs"]["enable"]:
+                login.login()
+                time.sleep(random.randint(3, 8))
+    account_cfg["cookie"] = tools.tidy_cookie(account_cfg["cookie"])
 
 
 def run_mihoyobbs() -> Tuple[str, bool]:
-    """执行米游社签到任务"""
     return_data = ""
     raise_stoken = False
-
     if config.config["mihoyobbs"]["enable"]:
         if config.config["account"]["stoken"] == "StokenError":
             return_data = "米游社：\n账号 Stoken 异常"
@@ -75,7 +86,6 @@ def run_mihoyobbs() -> Tuple[str, bool]:
 
 
 def run_cn_tasks() -> str:
-    """执行国服任务"""
     result = []
     if config.config["games"]['cn']["enable"]:
         result.append(gamecheckin.run_task())
@@ -86,7 +96,6 @@ def run_cn_tasks() -> str:
 
 
 def run_os_tasks() -> str:
-    """执行国际服任务"""
     result = []
     if config.config["games"]['os']["enable"]:
         log.info("海外版：")
@@ -100,15 +109,12 @@ def run_os_tasks() -> str:
 
 
 def run_web_activity() -> None:
-    """执行网页活动任务"""
     if config.config["web_activity"]['enable']:
         log.info("正在进行米游社网页活动任务")
         web_activity.run_task()
 
 
 def main() -> Tuple[int, str]:
-    """主执行函数"""
-    # 移除环境检查或保留为警告
     check_github_actions()
 
     success, msg = initialize_config()
@@ -123,7 +129,6 @@ def main() -> Tuple[int, str]:
     return_data = []
     status_code = StatusCode.SUCCESS.value
 
-    # 执行各模块任务
     mihoyo_result, raise_stoken = run_mihoyobbs()
     return_data.append(mihoyo_result)
 
@@ -143,25 +148,27 @@ def main() -> Tuple[int, str]:
 
 
 def task_run() -> None:
-    """任务运行入口"""
+    """任务运行入口，统一捕获异常并推送"""
+    push_message = ""   # 初始化默认值，避免 UnboundLocalError
+    status_code = StatusCode.FAILURE.value
 
     try:
         status_code, message = main()
         push_message = message
-    except CookieError:
+    except CookieError as e:
         status_code = StatusCode.FAILURE.value
-        push_message = f"账号 Cookie 出错！\n{message}"
-        log.error("账号 Cookie 有问题！")
-    except StokenError:
+        push_message = f"账号 Cookie 出错！\n{str(e)}"
+        log.error(f"账号 Cookie 有问题：{str(e)}")
+    except StokenError as e:
         status_code = StatusCode.FAILURE.value
-        push_message = f"账号 Stoken 出错！\n{message}"
-        log.error("账号 Stoken 有问题！")
+        push_message = f"账号 Stoken 出错！\n{str(e)}"
+        log.error(f"账号 Stoken 有问题：{str(e)}")
     except Exception as e:
         status_code = StatusCode.FAILURE.value
         push_message = f"运行出错！\n{str(e)}"
         log.error(f"运行出错：{str(e)}")
-
-    push.push(status_code, push_message)
+    finally:
+        push.push(status_code, push_message)
 
 
 if __name__ == "__main__":
