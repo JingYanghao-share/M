@@ -1,0 +1,128 @@
+name: Auto Mihoyo Check-in
+
+on:
+  schedule:
+    # 中国时间 7:30 = UTC 时间 23:30 (前一天)
+    # 注意：GitHub Actions 使用 UTC 时区
+    - cron: '30 23 * * *'
+  
+  # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: '日志级别'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - debug
+          - info
+          - warning
+          - error
+      force_run:
+        description: '强制运行（忽略时间限制）'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    
+    # 添加超时设置
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Display run info
+        run: |
+          echo "🕐 当前时间: $(date)"
+          echo "🌍 时区: $(date +%Z)"
+          echo "📋 触发方式: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🔧 日志级别: ${{ github.event.inputs.log_level }}"
+            echo "🚀 强制运行: ${{ github.event.inputs.force_run }}"
+          fi
+      
+      - name: Run check-in
+        env:
+          # ===== 必需 Secrets =====
+          COOKIE: ${{ secrets.COOKIE }}
+          STOKEN: ${{ secrets.STOKEN }}
+          STUID: ${{ secrets.STUID }}
+          MID: ${{ secrets.MID }}
+          
+          # ===== 可选 Secrets =====
+          CLOUD_GAME_GENSHIN_TOKEN: ${{ secrets.CLOUD_GAME_GENSHIN_TOKEN }}
+          CLOUD_GAME_ZZZ_TOKEN: ${{ secrets.CLOUD_GAME_ZZZ_TOKEN }}
+          CLOUD_GAME_GENSHIN_OS_TOKEN: ${{ secrets.CLOUD_GAME_GENSHIN_OS_TOKEN }}
+          GAME_OS_COOKIE: ${{ secrets.GAME_OS_COOKIE }}
+          
+          # ===== 功能开关 =====
+          ENABLE_ALL: "true"
+          
+          # 米游社
+          ENABLE_MIHOYOBBS: "true"
+          
+          # 国服游戏
+          ENABLE_GAME_CN: "true"
+          ENABLE_GAME_GENSHIN: "true"
+          ENABLE_GAME_HONKAI3RD: "false"
+          ENABLE_GAME_HONKAI_SR: "false"
+          ENABLE_GAME_ZZZ: "false"
+          
+          # 国际服游戏
+          ENABLE_GAME_OS: "false"
+          
+          # 云游戏
+          ENABLE_CLOUD_GAME_CN: "false"
+          ENABLE_CLOUD_GAME_GENSHIN: "false"
+          
+          # 网页活动
+          ENABLE_WEB_ACTIVITY: "false"
+          
+        run: |
+          python main.py
+      
+      - name: Send notification on success
+        if: success()
+        run: |
+          echo "✅ 签到任务执行成功"
+          # 可以添加通知逻辑，例如：
+          # - Telegram Bot
+          # - Server酱
+          # - Bark
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "❌ 签到任务执行失败"
+          # 可以添加失败通知逻辑
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_id }}
+          path: |
+            logs/
+            *.log
+          retention-days: 7
+      
+      - name: Clean up
+        if: always()
+        run: |
+          # 清理临时文件
+          rm -rf tmp/ 2>/dev/null || true
