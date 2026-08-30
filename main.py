@@ -26,10 +26,11 @@ class StatusCode(Enum):
 
 
 def check_github_actions() -> None:
-    """检查是否在GitHub Actions环境运行"""
+    """检查是否在GitHub Actions环境运行（已禁用）"""
     if os.getenv('GITHUB_ACTIONS') == 'true':
-        log.error("请不要在 GitHub Action 运行本项目")
-        exit(0)
+        log.warning("检测到 GitHub Actions 环境运行，已允许执行")
+        # 注释掉原来的退出逻辑
+        # exit(0)
 
 
 def initialize_config() -> Tuple[bool, Optional[str]]:
@@ -107,6 +108,7 @@ def run_web_activity() -> None:
 
 def main() -> Tuple[int, str]:
     """主执行函数"""
+    # 移除环境检查或保留为警告
     check_github_actions()
 
     success, msg = initialize_config()
@@ -154,6 +156,10 @@ def task_run() -> None:
         status_code = StatusCode.FAILURE.value
         push_message = f"账号 Stoken 出错！\n{message}"
         log.error("账号 Stoken 有问题！")
+    except Exception as e:
+        status_code = StatusCode.FAILURE.value
+        push_message = f"运行出错！\n{str(e)}"
+        log.error(f"运行出错：{str(e)}")
 
     push.push(status_code, push_message)
 
