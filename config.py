@@ -37,13 +37,124 @@ def get_secret_from_env(key: str, default: str = "", verbose: bool = True) -> st
     return default
 
 
+# ========== 配置定义 ==========
+config = {
+    'enable': True, 'version': 15, "push": "",
+    'account': {'cookie': '', 'stuid': '', 'stoken': '', 'mid': ''},
+    'device': {'name': 'Xiaomi MI 6', 'model': 'Mi 6', 'id': '', 'fp': ''},
+    'mihoyobbs': {
+        'enable': True, 'checkin': True, 'checkin_list': [5, 2],
+        'read': True, 'like': True, 'cancel_like': True, 'share': True
+    },
+    'games': {
+        'cn': {
+            'enable': True,
+            'useragent': 'Mozilla/5.0 (Linux; Android 12; Unspecified Device) AppleWebKit/537.36 (KHTML, like Gecko) '
+                         'Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36',
+            'retries': 3,
+            'genshin': {'checkin': True, 'black_list': []},
+            'honkai2': {'checkin': False, 'black_list': []},
+            'honkai3rd': {'checkin': False, 'black_list': []},
+            'tears_of_themis': {'checkin': False, 'black_list': []},
+            'honkai_sr': {'checkin': False, 'black_list': []},
+            'zzz': {'checkin': False, 'black_list': []}
+        },
+        'os': {
+            'enable': False, 'cookie': '', 'lang': 'zh-cn',
+            'genshin': {'checkin': False, 'black_list': []},
+            'honkai3rd': {'checkin': False, 'black_list': []},
+            'tears_of_themis': {'checkin': False, 'black_list': []},
+            'honkai_sr': {'checkin': False, 'black_list': []},
+            'zzz': {'checkin': False, 'black_list': []}
+        }
+    },
+    'cloud_games': {
+        "cn": {
+            "enable": False,
+            "genshin": {'enable': False, 'token': ""},
+            "zzz": {'enable': False, 'token': ""}
+        },
+        "os": {
+            "enable": False, 'lang': 'zh-cn',
+            "genshin": {'enable': False, 'token': ""}
+        }
+    },
+    'competition': {
+        'enable': False,
+        'genius_invokation': {'enable': False, 'account': [], 'checkin': False, 'weekly': False}
+    },
+    'web_activity': {'enable': False, 'activities': []}
+}
+config_raw = deepcopy(config)  # 必须在函数定义之前定义
+
+path = os.path.dirname(os.path.realpath(__file__)) + "/config"
+if os.getenv("AutoMihoyoBBS_config_path") is not None:
+    path = os.getenv("AutoMihoyoBBS_config_path")
+config_prefix = os.getenv("AutoMihoyoBBS_config_prefix")
+if config_prefix is None:
+    config_prefix = ""
+config_Path = f"{path}/{config_prefix}config.yaml"
+
+
+def copy_config():
+    return deepcopy(config_raw)
+
+
+def config_v11_update(data: dict):
+    global update_config_need
+    update_config_need = True
+    data['version'] = 13
+    new_config = {}
+    for key in data:
+        if key == "account":
+            new_config["push"] = ""
+        if key == "cloud_games":
+            new_config['cloud_games'] = deepcopy(config_raw['cloud_games'])
+            continue
+        new_config[key] = deepcopy(data[key])
+    new_config['cloud_games']['cn']['enable'] = data['cloud_games']['genshin']['enable']
+    new_config['cloud_games']['cn']['genshin']['enable'] = data['cloud_games']['genshin']['enable']
+    new_config['cloud_games']['cn']['genshin']['token'] = data['cloud_games']['genshin']['token']
+    log.info("config 已升级到：13")
+    return new_config
+
+
+def config_v12_update(data: dict):
+    global update_config_need
+    update_config_need = True
+    data['version'] = 13
+    data['cloud_games']['cn']['zzz'] = {'enable': False, 'token': ""}
+    log.info("config 已升级到: 13")
+    return data
+
+
+def config_v13_update(data: dict):
+    global update_config_need
+    update_config_need = True
+    new_config = deepcopy(data)
+    new_config['version'] = 14
+    new_config['device']['fp'] = config['device'].get('fp', '')
+    log.info("config 已升级到：14")
+    return new_config
+
+
+def update_v14_update(data: dict):
+    global update_config_need
+    update_config_need = True
+    new_config = deepcopy(data)
+    new_config['version'] = 15
+    new_config['web_activity'] = {'enable': False, 'activities': []}
+    log.info("config 已升级到：15")
+    return new_config
+
+
 def load_config_from_env():
     """从环境变量加载所有配置，并显示详细的状态信息"""
     log.info("=" * 60)
     log.info("开始从环境变量加载配置...")
     log.info("=" * 60)
     
-    env_config = deepcopy(config_raw)
+    env_config = deepcopy(config_raw)  # 现在 config_raw 已经定义了
     
     # ========== 账号信息（必须） ==========
     log.info("\n📋 [必需] 账号信息:")
@@ -171,7 +282,7 @@ def load_config_from_env():
     
     if missing_required:
         log.error(f"❌ 缺少必需的 Secrets: {', '.join(missing_required)}")
-        log.error(f"请前往 Settings → Secrets and variables → Actions 添加以下 Secrets:")
+        log.error("请前往 Settings → Secrets and variables → Actions 添加以下 Secrets:")
         for secret in missing_required:
             log.error(f"   - {secret}")
     else:
@@ -262,5 +373,126 @@ def override_from_env(data: dict):
     return data
 
 
-# ... 保留其他函数不变 (config_v11_update, config_v12_update, config_v13_update, update_v14_update, save_config, clear_stoken, clear_cookie, disable_games, clear_cookie_cloudgame_genshin, clear_cookie_cloudgame_genshin_os, clear_cookie_cloudgame_zzz)
-# 注意：这些函数和之前保持一致，此处省略以节省空间，但实际使用时需要保留完整代码
+def save_config(p_path=None, p_config=None):
+    global serverless
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，跳过保存配置文件")
+        return None
+    if not p_path:
+        p_path = config_Path
+    if not p_config:
+        p_config = config
+    os.makedirs(os.path.dirname(p_path), exist_ok=True)
+    try:
+        with open(p_path, "w+", encoding='utf-8') as f:
+            f.seek(0)
+            f.truncate()
+            if is_github_actions():
+                safe_config = deepcopy(p_config)
+                safe_config['account']['cookie'] = ''
+                safe_config['account']['stoken'] = ''
+                safe_config['account']['stuid'] = ''
+                safe_config['account']['mid'] = ''
+                safe_config['cloud_games']['cn']['genshin']['token'] = ''
+                safe_config['cloud_games']['cn']['zzz']['token'] = ''
+                safe_config['cloud_games']['os']['genshin']['token'] = ''
+                safe_config['games']['os']['cookie'] = ''
+                f.write(yaml.dump(safe_config, Dumper=yaml.Dumper, sort_keys=False))
+            else:
+                f.write(yaml.dump(p_config, Dumper=yaml.Dumper, sort_keys=False))
+            f.flush()
+    except OSError:
+        serverless = True
+        log.info("Cookie 保存失败")
+    else:
+        log.info("Config 保存完毕")
+
+
+def clear_stoken():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除 Stoken")
+        return None
+    config["account"]["mid"] = ""
+    config["account"]["stuid"] = ""
+    config["account"]["stoken"] = "StokenError"
+    log.info("Stoken 已删除")
+    save_config()
+
+
+def clear_cookie():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除 Cookie")
+        return None
+    config["account"]["cookie"] = "CookieError"
+    log.info("Cookie 已删除")
+    save_config()
+
+
+def disable_games(region: str = "cn"):
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，跳过禁用游戏签到")
+        return None
+    config['games'][region]['enable'] = False
+    log.info(f"游戏签到（{region}）已关闭")
+    save_config()
+
+
+def clear_cookie_cloudgame_genshin():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['cn']['genshin']["enable"] = False
+    config['cloud_games']['cn']['genshin']['token'] = ""
+    log.info("国服云原神 Cookie 删除完毕")
+    save_config()
+
+
+def clear_cookie_cloudgame_genshin_os():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['os']['genshin']["enable"] = False
+    config['cloud_games']['os']['genshin']['token'] = ""
+    log.info("国际服云原神 Cookie 删除完毕")
+    save_config()
+
+
+def clear_cookie_cloudgame_zzz():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['cn']['zzz']["enable"] = False
+    config['cloud_games']['cn']['zzz']['token'] = ""
+    log.info("国服云绝区零 Cookie 删除完毕")
+    save_config()
+
+
+if __name__ == "__main__":
+    pass
