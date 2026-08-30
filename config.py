@@ -432,4 +432,149 @@ def clear_cookie_cloudgame_zzz():
 
 if __name__ == "__main__":
     # 初始化配置文件
+    passzz
+        
+        token_os = get_secret_from_env('CLOUD_GAME_GENSHIN_OS_TOKEN')
+        if token_os:
+            data['cloud_games']['os']['genshin']['token'] = token_os
+        
+        # 覆盖国际服 Cookie
+        os_cookie = get_secret_from_env('GAME_OS_COOKIE')
+        if os_cookie:
+            data['games']['os']['cookie'] = os_cookie
+    
+    return data
+
+
+def save_config(p_path=None, p_config=None):
+    global serverless
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    
+    # 在 GitHub Actions 环境不保存配置文件
+    if is_github_actions():
+        log.info("GitHub Actions 环境，跳过保存配置文件")
+        return None
+    
+    if not p_path:
+        p_path = config_Path
+    if not p_config:
+        p_config = config
+    
+    # 创建配置目录
+    os.makedirs(os.path.dirname(p_path), exist_ok=True)
+    
+    try:
+        with open(p_path, "w+", encoding='utf-8') as f:
+            f.seek(0)
+            f.truncate()
+            # 在保存前移除敏感信息（如果是从环境变量加载的）
+            if is_github_actions():
+                # 创建副本，移除敏感信息
+                safe_config = deepcopy(p_config)
+                safe_config['account']['cookie'] = ''
+                safe_config['account']['stoken'] = ''
+                safe_config['account']['stuid'] = ''
+                safe_config['account']['mid'] = ''
+                safe_config['cloud_games']['cn']['genshin']['token'] = ''
+                safe_config['cloud_games']['cn']['zzz']['token'] = ''
+                safe_config['cloud_games']['os']['genshin']['token'] = ''
+                safe_config['games']['os']['cookie'] = ''
+                f.write(yaml.dump(safe_config, Dumper=yaml.Dumper, sort_keys=False))
+            else:
+                f.write(yaml.dump(p_config, Dumper=yaml.Dumper, sort_keys=False))
+            f.flush()
+    except OSError:
+        serverless = True
+        log.info("Cookie 保存失败")
+    else:
+        log.info("Config 保存完毕")
+
+
+def clear_stoken():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除 Stoken")
+        return None
+    config["account"]["mid"] = ""
+    config["account"]["stuid"] = ""
+    config["account"]["stoken"] = "StokenError"
+    log.info("Stoken 已删除")
+    save_config()
+
+
+def clear_cookie():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除 Cookie")
+        return None
+    config["account"]["cookie"] = "CookieError"
+    log.info(f"Cookie 已删除")
+    save_config()
+
+
+def disable_games(region: str = "cn"):
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，跳过禁用游戏签到")
+        return None
+    config['games'][region]['enable'] = False
+    log.info(f"游戏签到（{region}）已关闭")
+    save_config()
+
+
+def clear_cookie_cloudgame_genshin():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['cn']['genshin']["enable"] = False
+    config['cloud_games']['cn']['genshin']['token'] = ""
+    log.info("国服云原神 Cookie 删除完毕")
+    save_config()
+
+
+def clear_cookie_cloudgame_genshin_os():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['os']['genshin']["enable"] = False
+    config['cloud_games']['os']['genshin']['token'] = ""
+    log.info("国际服云原神 Cookie 删除完毕")
+    save_config()
+
+
+def clear_cookie_cloudgame_zzz():
+    global config
+    if serverless:
+        log.info("云函数执行，无法保存")
+        return None
+    if is_github_actions():
+        log.info("GitHub Actions 环境，无需清除云游戏 Cookie")
+        return None
+    config['cloud_games']['cn']['zzz']["enable"] = False
+    config['cloud_games']['cn']['zzz']['token'] = ""
+    log.info("国服云绝区零 Cookie 删除完毕")
+    save_config()
+
+
+if __name__ == "__main__":
+    # 初始化配置文件
     pass
